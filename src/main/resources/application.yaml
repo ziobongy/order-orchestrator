@@ -1,0 +1,53 @@
+spring:
+    # Aggiungi questo blocco per la connessione!
+  rabbitmq:
+    host: localhost        # Cambialo se RabbitMQ è su un altro server/IP
+    port: 5672             # La porta standard AMQP
+    username: user
+    password: password
+  application:
+    name: OrderOrchestrationService
+  cloud:
+    function:
+      definition: orderOrchestrationListener;orderOrchestrationListenerError
+    stream:
+      bindings:
+        #queste sono le code per la creazione di un ordine e per la gestione degli errori durante la creazione
+        #vanno tutte sul microservizio OrderManagementService
+        orderManagementService-out-0:
+          destination: order-service
+          producer:
+            required-groups:
+              - queue
+        orderManagementError-out-0:
+          destination: order-service-errors
+          producer:
+            required-groups:
+              - queue
+
+        #queste sono le code per la gestione del pagamento di un ordine e per la gestione degli errori durante il pagamento
+        #vanno tutte sul microservizio PaymentService
+        paymentService-out-0:
+          destination: payment-service
+          producer:
+            required-groups:
+              - queue
+
+        #queste sono le code a cui mi sottoscrivo per ricevere l'aggiornamento dell'ordine e/o errori
+        orderOrchestrationListener-in-0:
+          destination: orders-orchestration-service
+          group: queue
+        orderOrchestrationListenerError-in-0:
+          destination: orders-orchestration-service-error
+          group: queue
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://${DATASOURCE_HOST_PORT}/${DATASOURCE_NAME}
+    username: ${DATASOURCE_USERNAME}
+    password: ${DATASOURCE_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
