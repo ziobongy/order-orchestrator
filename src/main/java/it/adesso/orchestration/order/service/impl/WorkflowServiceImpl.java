@@ -1,26 +1,26 @@
 package it.adesso.orchestration.order.service.impl;
 
-import it.adesso.orchestration.order.DTO.OrderDTO;
-import it.adesso.orchestration.order.DTO.ReceivedEventDTO;
 import it.adesso.orchestration.order.DTO.SendingEventDTO;
 import it.adesso.orchestration.order.entities.Order;
 import it.adesso.orchestration.order.enums.ActionEventEnum;
 import it.adesso.orchestration.order.enums.OrderReceivedEventEnum;
 import it.adesso.orchestration.order.enums.OrderStatusEnum;
-import it.adesso.orchestration.order.service.JwtUtilService;
 import it.adesso.orchestration.order.service.OrderService;
 import it.adesso.orchestration.order.service.QueueService;
 import it.adesso.orchestration.order.service.WorkflowService;
 import it.adesso.orchestration.order.utils.OrdersUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class WorkflowServiceImpl implements WorkflowService {
+
+    private static final String PAYMENT_BINDING_NAME = "paymentService-out-0";
+    private static final String ORDER_MANAGEMENT_BINDING_NAME = "orderManagementService-out-0";
+    private static final String ORDERS_ERROR_BINDING_NAME = "orderManagementError-out-0";
 
     private final OrderService orderService;
     private final QueueService queueService;
@@ -32,11 +32,25 @@ public class WorkflowServiceImpl implements WorkflowService {
         try {
             orderStatusEnum = OrderStatusEnum.valueOf(order.getStatus());
         } catch (IllegalArgumentException e) {
+            this.queueService.sendMessage(
+                ORDERS_ERROR_BINDING_NAME,
+                SendingEventDTO.builder()
+                    .orderId(orderId)
+                    .message("Invalid order status: " + order.getStatus())
+                    .build()
+            );
             log.error("Invalid order status: " + order.getStatus());
             return;
         }
         // devo anzitutto capire se l'ordine è in uno stato corretto per ricevere questo aggiornamento
         if (!OrdersUtils.checkStatusAndEvent(orderStatusEnum, event)) {
+            this.queueService.sendMessage(
+                ORDERS_ERROR_BINDING_NAME,
+                SendingEventDTO.builder()
+                    .orderId(orderId)
+                    .message("Invalid event " + event + " for order status " + orderStatusEnum)
+                    .build()
+            );
             log.error("Invalid event {} for order status {}", event, orderStatusEnum);
             return;
         }
@@ -46,7 +60,7 @@ public class WorkflowServiceImpl implements WorkflowService {
                 this.orderService.saveOrderStatus(order, OrderStatusEnum.UNDER_PAYMENT);
                 // ora devo notificare il servizio di pagamento
                 this.queueService.sendMessage(
-                    "paymentService-out-0",
+                    PAYMENT_BINDING_NAME,
                     SendingEventDTO.builder()
                         .orderId(orderId)
                         .event(ActionEventEnum.PAY)
@@ -58,7 +72,7 @@ public class WorkflowServiceImpl implements WorkflowService {
                 this.orderService.saveOrderStatus(order, OrderStatusEnum.PAYED);
                 // ora devo notificare il servizio di ordini
                 this.queueService.sendMessage(
-                    "orderManagementService-out-0",
+                    ORDER_MANAGEMENT_BINDING_NAME,
                     SendingEventDTO.builder()
                         .orderId(orderId)
                         .event(ActionEventEnum.UPDATE_PAYED)
@@ -74,7 +88,7 @@ public class WorkflowServiceImpl implements WorkflowService {
                 this.orderService.saveOrderStatus(order, OrderStatusEnum.UNDER_PAYMENT);
                 // ora devo notificare il servizio di pagamento
                 this.queueService.sendMessage(
-                    "paymentService-out-0",
+                    PAYMENT_BINDING_NAME,
                     SendingEventDTO.builder()
                         .orderId(orderId)
                         .event(ActionEventEnum.PAY)

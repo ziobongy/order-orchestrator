@@ -11,6 +11,7 @@ import it.adesso.orchestration.order.service.OrderService;
 import it.adesso.orchestration.order.service.QueueService;
 import it.adesso.orchestration.order.service.WorkflowService;
 import it.adesso.orchestration.order.utils.OrdersUtils;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.stream.function.StreamBridge;
@@ -19,10 +20,14 @@ import org.springframework.stereotype.Service;
 import javax.swing.*;
 import java.awt.*;
 
+@Transactional
 @RequiredArgsConstructor
 @Service
 @Slf4j
 public class OrderServiceImpl implements OrderService {
+
+    private static final String ORDERS_BINDING_NAME = "orderManagementService-out-0";
+    private static final String ORDERS_ERROR_BINDING_NAME = "orderManagementError-out-0";
 
     private final OrderMapping orderMapping;
     private final OrderRepository orderRepository;
@@ -34,7 +39,7 @@ public class OrderServiceImpl implements OrderService {
         orderEntity.setStatus(OrderStatusEnum.ACQUIRED.getName());
         this.orderRepository.save(orderEntity);
         this.queueService.sendMessage(
-            "orderManagementService-out-0",
+            ORDERS_BINDING_NAME,
             SendingEventDTO.builder()
                     .orderId(orderEntity.getId())
                     .event(ActionEventEnum.CREATE)
@@ -49,12 +54,19 @@ public class OrderServiceImpl implements OrderService {
             () -> new RuntimeException("Order not found")
         );
         if (!OrdersUtils.checkStatusAndAction(OrderStatusEnum.valueOf(orderEntity.getStatus()), ActionEventEnum.UPDATE)) {
+            this.queueService.sendMessage(
+                ORDERS_ERROR_BINDING_NAME,
+                SendingEventDTO.builder()
+                    .orderId(id)
+                    .message("Order cannot be edited in its current status: status " + orderEntity.getStatus() + " - action " + ActionEventEnum.UPDATE.name())
+                    .build()
+            );
             throw new RuntimeException("Order cannot be edited in its current status");
         }
         orderEntity.setStatus(OrderStatusEnum.UNDER_EDITING.getName());
         this.orderRepository.save(orderEntity);
         this.queueService.sendMessage(
-            "orderManagementService-out-0",
+            ORDERS_BINDING_NAME,
             SendingEventDTO.builder()
                 .orderId(id)
                 .event(ActionEventEnum.UPDATE)
@@ -69,11 +81,18 @@ public class OrderServiceImpl implements OrderService {
                 () -> new RuntimeException("Order not found")
         );
         if (!OrdersUtils.checkStatusAndAction(OrderStatusEnum.valueOf(orderEntity.getStatus()), ActionEventEnum.DELETE)) {
+            this.queueService.sendMessage(
+                ORDERS_ERROR_BINDING_NAME,
+                SendingEventDTO.builder()
+                    .orderId(id)
+                    .message("Order cannot be edited in its current status: status " + orderEntity.getStatus() + " - action " + ActionEventEnum.DELETE.name())
+                    .build()
+            );
             throw new RuntimeException("Order cannot be edited in its current status");
         }
         this.saveOrderStatus(orderEntity, OrderStatusEnum.DELETED);
         this.queueService.sendMessage(
-            "orderManagementService-out-0",
+            ORDERS_BINDING_NAME,
             SendingEventDTO.builder()
                 .orderId(id)
                 .event(ActionEventEnum.DELETE)
