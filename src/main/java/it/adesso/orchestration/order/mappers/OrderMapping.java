@@ -14,8 +14,6 @@ import java.util.Map;
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
 public interface OrderMapping {
 
-    OrderDTO toDto(Order order);
-
     @Mapping(target = "order", source = "orderDTO", qualifiedByName = "toMap")
     Order toEntity(OrderDTO orderDTO);
 
