@@ -1,10 +1,9 @@
 spring:
-    # Aggiungi questo blocco per la connessione!
   rabbitmq:
-    host: localhost        # Cambialo se RabbitMQ è su un altro server/IP
-    port: 5672             # La porta standard AMQP
-    username: user
-    password: password
+    host: ${RABBITMQ_HOSTNAME}
+    port: ${RABBITMQ_PORT}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASSWORD}
   application:
     name: OrderOrchestrationService
   cloud:

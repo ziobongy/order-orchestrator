@@ -9,7 +9,11 @@ import org.springframework.test.context.TestPropertySource;
     "spring.jpa.hibernate.ddl-auto=none",
     "spring.datasource.url=jdbc:h2:mem:test",
     "spring.datasource.driverClassName=org.h2.Driver",
-    "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect"
+    "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
+    "spring.rabbitmq.host=localhost",
+    "spring.rabbitmq.port=5672",
+    "spring.rabbitmq.username=guest",
+    "spring.rabbitmq.password=guest"
 })
 class OrderOrchestrationServiceApplicationTests {
 
